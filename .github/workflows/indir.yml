@@ -1,0 +1,45 @@
+name: Yargıtay kararlarını Drive'a indir
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 */6 * * *"
+
+concurrency:
+  group: yargitay-indir
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  indir:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Kararları indir ve Drive'a yükle
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+          DRIVE_KLASOR_ID: "1PNebAHb-bKP9YzVSg8j4s--LIseKO0Zl"
+          DAIRE: "9. Hukuk Dairesi"
+          BASLANGIC: "2025-01-01"
+          SIRALAMA: "yeni"
+          SURE_LIMITI_DK: "320"
+        run: python indir.py
+      - name: İlerlemeyi kaydet
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add durum/
+          git diff --cached --quiet || git commit -m "İlerleme: $(($(wc -l < durum/indirilenler.tsv) - 1)) karar [skip ci]"
+          git pull --rebase --autostash || true
+          git push
